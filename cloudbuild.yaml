@@ -1,0 +1,28 @@
+steps:
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args: ['-c', 'gcloud secrets versions access 2 --secret=generalgalactic-npmrc > .npmrc']
+
+  - name: 'gcr.io/k8s-skaffold/pack'
+    entrypoint: 'pack'
+    args:
+      [
+        'build',
+        '--builder=gcr.io/buildpacks/builder',
+        '--publish',
+        'gcr.io/galactic-96e90/tengah-callable',
+      ]
+  #deploy to Google Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      [
+        'run',
+        'deploy',
+        'tengah-callable',
+        '--image',
+        'gcr.io/galactic-96e90/tengah-callable:latest',
+        '--region',
+        'us-central1',
+        '--platform',
+        'managed',
+      ]
