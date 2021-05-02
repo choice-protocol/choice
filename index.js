@@ -3,7 +3,7 @@ const httpProxy = require('http-proxy');
 const express = require('express');
 const bodyParser = require('body-parser');
 
-const serverPort = 8545;
+const serverPort = 8080;
 const proxyTarget = 'https://mainnet.infura.io/v3/c5b349fd47244da8a4df10652b911d38';
 
 function logRequest(request) {
@@ -50,7 +50,7 @@ proxyApp.use(function (req, res) {
   // ... log your body and something else
   console.log('proxy body:', req.body);
   proxy.web(req, res, {
-    target: 'http://127.0.0.1:5000',
+    target: proxyTarget,
   });
 });
 
