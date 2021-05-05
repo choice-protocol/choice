@@ -115,6 +115,8 @@ func main() {
 	// start server
 	http.HandleFunc("/", handleRequestAndRedirect)
 
+	log.Printf("Listening at :8080")
+
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		panic(err)
 	}
