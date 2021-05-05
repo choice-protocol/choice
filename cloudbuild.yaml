@@ -1,7 +1,25 @@
 steps:
-- name: golang
-  args: ['go', 'build', '.']
-artifacts:
-  objects:
-    location: '[STORAGE_LOCATION]'
-    paths: ['[ARTIFACT_PATH]']
+
+  - name: 'gcr.io/k8s-skaffold/pack'
+    entrypoint: 'pack'
+    args:
+      [
+        'build',
+        '--builder=gcr.io/buildpacks/builder',
+        '--publish',
+        'gcr.io/choice-operator/operator-proxy',
+      ]
+  #deploy to Google Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      [
+        'run',
+        'deploy',
+        'operator-proxy',
+        '--image',
+        'gcr.io/choice-operator/operator-proxy:latest',
+        '--region',
+        'europe-west6',
+        '--platform',
+        'managed',
+      ]
