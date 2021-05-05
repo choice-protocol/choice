@@ -3,11 +3,13 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"time"
 	// "cloud.google.com/go/bigquery"
 )
@@ -40,7 +42,7 @@ func getProxyUrl() string {
 
 // Save implements the ValueSaver interface.
 // This example disables best-effort de-duplication, which allows for higher throughput.
-func SaveLogItem(logItem LogEntry) {
+func saveLogItem(logItem LogEntry) {
 
 	// save the log entry - right now we are just saving it to the log
 
@@ -88,7 +90,7 @@ func handleRequestAndRedirect(res http.ResponseWriter, req *http.Request) {
 
 	// build and save log
 	logItem := LogEntry{Destination_url: target, Payload: requestPayload, Headers: req.Header, timestamp: time.Now()}
-	SaveLogItem(logItem)
+	saveLogItem(logItem)
 
 	// parse the url
 	url, _ := url.Parse(target)
@@ -106,18 +108,32 @@ func handleRequestAndRedirect(res http.ResponseWriter, req *http.Request) {
 	proxy.ServeHTTP(res, req)
 }
 
+func debugHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "debugging")
+}
+
 /*
 	Entry
 */
 
 func main() {
+	log.Print("starting server...")
 
 	// start server
 	http.HandleFunc("/", handleRequestAndRedirect)
+	// start server
+	http.HandleFunc("/debug", debugHandler)
 
-	log.Printf("Listening at :8080")
+	// Determine port for HTTP service.
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+		log.Printf("defaulting to port %s", port)
+	}
 
-	if err := http.ListenAndServe(":8080", nil); err != nil {
-		panic(err)
+	// Start HTTP server.
+	log.Printf("listening on port %s", port)
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
+		log.Fatal(err)
 	}
 }
