@@ -100,7 +100,7 @@ func handleRequestAndRedirect(res http.ResponseWriter, req *http.Request) {
 	// Update the headers to allow for SSL redirection
 	req.URL.Host = url.Host
 	req.URL.Scheme = url.Scheme
-	req.Header.Set("X-Forwarded-Host", req.Header.Get("Host"))
+	// req.Header.Set("X-Forwarded-Host", req.Header.Get("Host"))
 	req.Header.Set("X-Choice-Operator-Version", "0.01")
 	req.Host = url.Host
 
