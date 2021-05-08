@@ -55,6 +55,28 @@ func saveLogItem(logItem LogEntry) {
 	} else {
 		log.Println(string(reqHeadersBytes))
 	}
+
+	projectID := "choice-operator"
+
+	// Use the application default credentials
+	ctx := context.Background()
+	conf := &firebase.Config{ProjectID: projectID}
+	app, err := firebase.NewApp(ctx, conf)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	client, err := app.Firestore(ctx)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer client.Close()
+
+	_, _, err = client.Collection("proxy_requests").Add(ctx, logItem)
+	if err != nil {
+		log.Fatalf("Failed adding alovelace: %v", err)
+	}
+
 }
 
 /*
@@ -122,31 +144,6 @@ func debugHandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	log.Print("starting server...")
-
-	projectID := "choice-operator"
-
-	// Use the application default credentials
-	ctx := context.Background()
-	conf := &firebase.Config{ProjectID: projectID}
-	app, err := firebase.NewApp(ctx, conf)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	client, err := app.Firestore(ctx)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	defer client.Close()
-
-	_, _, err = client.Collection("users").Add(ctx, map[string]interface{}{
-		"first": "Ada",
-		"last":  "Lovelace",
-		"born":  1815,
-	})
-	if err != nil {
-		log.Fatalf("Failed adding alovelace: %v", err)
-	}
 
 	// start server
 	http.HandleFunc("/", handleRequestAndRedirect)
