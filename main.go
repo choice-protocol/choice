@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -11,6 +13,8 @@ import (
 	"net/url"
 	"os"
 	"time"
+
+	firebase "firebase.google.com/go"
 	// "cloud.google.com/go/bigquery"
 )
 
@@ -118,6 +122,31 @@ func debugHandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	log.Print("starting server...")
+
+	projectID := "choice-operator"
+
+	// Use the application default credentials
+	ctx := context.Background()
+	conf := &firebase.Config{ProjectID: projectID}
+	app, err := firebase.NewApp(ctx, conf)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	client, err := app.Firestore(ctx)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer client.Close()
+
+	_, _, err = client.Collection("users").Add(ctx, map[string]interface{}{
+		"first": "Ada",
+		"last":  "Lovelace",
+		"born":  1815,
+	})
+	if err != nil {
+		log.Fatalf("Failed adding alovelace: %v", err)
+	}
 
 	// start server
 	http.HandleFunc("/", handleRequestAndRedirect)
