@@ -93,14 +93,21 @@ func parseRequestBody(request *http.Request) map[string]interface{} {
 func handleRPCRequest(res http.ResponseWriter, req *http.Request) {
 	requestPayload := parseRequestBody(req)
 
-	// build and save log
-	logItem := LogEntry{Payload: requestPayload, Headers: req.Header, timestamp: time.Now()}
-	saveLogItem(logItem)
+	
+	if requestPayload['method'] == "eth_sendtransaction" 
+	{	// this we want to keep, build and save log
+		// todo: make public stripped version of the log without r,s,v,hash entires
+		logItem := LogEntry{Payload: requestPayload, Headers: req.Header, timestamp: time.Now()}
+		saveLogItem(logItem)
 
-	res.Header().Set("X-Choice-Operator-Version", "0.01")
-	res.Header().Set("Content-Type", "application/json")
-
-	fmt.Fprintf(res, "{}")
+		res.Header().Set("X-Choice-Operator-Version", "0.01")
+		res.Header().Set("Content-Type", "application/json")
+	
+		fmt.Fprintf(res, "{}")
+	}
+	else
+	{//foward to infura/alchemy/whatever our default it
+	}
 }
 
 func debugHandler(w http.ResponseWriter, r *http.Request) {
