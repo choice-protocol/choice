@@ -1,9 +1,8 @@
 # choice Operator
 
-A proxy to pick a new endpoint based on external conditions
+A proxy that:
 
-
----
-
+- sends to a standard endpoint (infura/alchemy/etc) everything except transactions (no recording)
+- records those transactions it does not send to firestore
 
 

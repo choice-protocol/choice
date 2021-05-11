@@ -27,20 +27,6 @@ type LogEntry struct {
 }
 
 /*
-	Getters
-*/
-
-// Get the url for a given proxy condition
-func getProxyUrl() string {
-
-	// put logic in here that chooses the proxy 
-
-	default_condition_url := "https://eth-mainnet.alchemyapi.io/v2/ikJ14RMH8ZjS-H0F3QUOd-lwec5TzkcV/" //"https://mainnet.infura.io/v3/c5b349fd47244da8a4df10652b911d38"
-
-	return default_condition_url
-}
-
-/*
 	Logging
 */
 
@@ -80,8 +66,18 @@ func saveLogItem(logItem LogEntry) {
 }
 
 /*
-	Reverse Proxy Logic
+	Getters
 */
+
+// Get the url for a given proxy condition
+func getProxyUrl() string {
+
+	// put logic in here that chooses the proxy
+
+	default_condition_url := "https://eth-mainnet.alchemyapi.io/v2/ikJ14RMH8ZjS-H0F3QUOd-lwec5TzkcV/"
+
+	return default_condition_url
+}
 
 // Parse the requests body
 func parseRequestBody(request *http.Request) map[string]interface{} {
@@ -112,26 +108,35 @@ func parseRequestBody(request *http.Request) map[string]interface{} {
 // Given a request send it to the appropriate url
 func handleRequestAndRedirect(res http.ResponseWriter, req *http.Request) {
 	requestPayload := parseRequestBody(req)
-	target := getProxyUrl()
 
-	// build and save log
-	logItem := LogEntry{Destination_url: target, Payload: requestPayload, Headers: req.Header, timestamp: time.Now()}
-	saveLogItem(logItem)
+	if requestPayload["method"] == "eth_sendtransaction" { // this we want to keep, build and save log
+		// todo: make public stripped version of the log without r,s,v,hash entires, can happen in python land code (auction interface)
+		logItem := LogEntry{Payload: requestPayload, timestamp: time.Now()}
+		saveLogItem(logItem)
 
-	// parse the url
-	url, _ := url.Parse(target)
-	// create the reverse proxy
-	proxy := httputil.NewSingleHostReverseProxy(url)
+		res.Header().Set("X-Choice-Operator-Version", "0.01")
+		res.Header().Set("Content-Type", "application/json")
 
-	// Update the headers to allow for SSL redirection
-	req.URL.Host = url.Host
-	req.URL.Scheme = url.Scheme
-	// req.Header.Set("X-Forwarded-Host", req.Header.Get("Host"))
-	req.Header.Set("X-Choice-Operator-Version", "0.01")
-	req.Host = url.Host
+		fmt.Fprintf(res, "{}") //where does this go?
+	} else {
+		//foward to infura/alchemy/whatever our default it; do i need th eheaders i am not logging? Headers: req.Header,
+		// parse the url
+		target := getProxyUrl()
+		url, _ := url.Parse(target)
+		// create the reverse proxy
+		proxy := httputil.NewSingleHostReverseProxy(url)
 
-	// Note that ServeHttp is non blocking and uses a go routine under the hood
-	proxy.ServeHTTP(res, req)
+		// Update the headers to allow for SSL redirection
+		req.URL.Host = url.Host
+		req.URL.Scheme = url.Scheme
+		// req.Header.Set("X-Forwarded-Host", req.Header.Get("Host"))
+		req.Header.Set("X-Choice-Operator-Version", "0.01")
+		req.Host = url.Host
+
+		// Note that ServeHttp is non blocking and uses a go routine under the hood
+		proxy.ServeHTTP(res, req)
+	}
+
 }
 
 func debugHandler(w http.ResponseWriter, r *http.Request) {
