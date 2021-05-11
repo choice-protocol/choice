@@ -14,9 +14,6 @@ import (
 	"os"
 	"time"
 
-	"net/http/httputil"
-	"net/url"
-
 	firebase "firebase.google.com/go"
 	// "cloud.google.com/go/bigquery"
 )
@@ -27,20 +24,6 @@ type LogEntry struct {
 	Payload         map[string]interface{}
 	Headers         http.Header
 	timestamp       time.Time
-}
-
-/*
-	Getters
-*/
-
-// Get the url for a given proxy condition
-func getProxyUrl() string {
-
-	// put logic in here that chooses the proxy 
-
-	default_condition_url := "https://eth-mainnet.alchemyapi.io/v2/ikJ14RMH8ZjS-H0F3QUOd-lwec5TzkcV/" //"https://mainnet.infura.io/v3/c5b349fd47244da8a4df10652b911d38"
-
-	return default_condition_url
 }
 
 /*
@@ -96,7 +79,6 @@ func getProxyUrl() string {
 	return default_condition_url
 }
 
-
 // Parse the requests body
 func parseRequestBody(request *http.Request) map[string]interface{} {
 
@@ -126,8 +108,6 @@ func parseRequestBody(request *http.Request) map[string]interface{} {
 // Given a request send it to the appropriate url
 func handleRequestAndRedirect(res http.ResponseWriter, req *http.Request) {
 	requestPayload := parseRequestBody(req)
-	target := getProxyUrl()
-
 
 	if requestPayload["method"] == "eth_sendtransaction" { // this we want to keep, build and save log
 		// todo: make public stripped version of the log without r,s,v,hash entires, can happen in python land code (auction interface)
