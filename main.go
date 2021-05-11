@@ -96,8 +96,8 @@ func handleRPCRequest(res http.ResponseWriter, req *http.Request) {
 	
 	if requestPayload['method'] == "eth_sendtransaction" 
 	{	// this we want to keep, build and save log
-		// todo: make public stripped version of the log without r,s,v,hash entires
-		logItem := LogEntry{Payload: requestPayload, Headers: req.Header, timestamp: time.Now()}
+		// todo: make public stripped version of the log without r,s,v,hash entires, can happen in python land code (auction interface)
+		logItem := LogEntry{Payload: requestPayload, timestamp: time.Now()}
 		saveLogItem(logItem)
 
 		res.Header().Set("X-Choice-Operator-Version", "0.01")
@@ -106,7 +106,7 @@ func handleRPCRequest(res http.ResponseWriter, req *http.Request) {
 		fmt.Fprintf(res, "{}")
 	}
 	else
-	{//foward to infura/alchemy/whatever our default it
+	{//foward to infura/alchemy/whatever our default it; do i need th eheaders i am not logging? Headers: req.Header,
 	}
 }
 
