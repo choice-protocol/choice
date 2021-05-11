@@ -35,7 +35,7 @@ func getProxyUrl() string {
 
 	// put logic in here that chooses the proxy 
 
-	default_condition_url := "https://api-eu.taichi.network:10001/rpc/private" //"https://mainnet.infura.io/v3/c5b349fd47244da8a4df10652b911d38"
+	default_condition_url := "https://eth-mainnet.alchemyapi.io/v2/ikJ14RMH8ZjS-H0F3QUOd-lwec5TzkcV" //"https://mainnet.infura.io/v3/c5b349fd47244da8a4df10652b911d38"
 
 	return default_condition_url
 }
