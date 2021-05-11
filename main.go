@@ -11,6 +11,9 @@ import (
 	"net/http"
 	"os"
 	"time"
+	
+	"net/http/httputil"
+	"net/url"
 
 	firebase "firebase.google.com/go"
 	// "cloud.google.com/go/bigquery"
@@ -63,6 +66,22 @@ func saveLogItem(logItem LogEntry) {
 
 }
 
+/*
+	Getters
+*/
+
+// Get the url for a given proxy condition
+func getProxyUrl() string {
+
+	// put logic in here that chooses the proxy
+
+	default_condition_url := "https://mainnet.infura.io/v3/c5b349fd47244da8a4df10652b911d38"
+
+	return default_condition_url
+}
+
+
+
 // Parse the requests body
 func parseRequestBody(request *http.Request) map[string]interface{} {
 
@@ -103,10 +122,25 @@ func handleRPCRequest(res http.ResponseWriter, req *http.Request) {
 		res.Header().Set("X-Choice-Operator-Version", "0.01")
 		res.Header().Set("Content-Type", "application/json")
 	
-		fmt.Fprintf(res, "{}")
+		fmt.Fprintf(res, "{}") //where does this go?
 	}
 	else
-	{//foward to infura/alchemy/whatever our default it; do i need th eheaders i am not logging? Headers: req.Header,
+	{
+		//foward to infura/alchemy/whatever our default it; do i need th eheaders i am not logging? Headers: req.Header,
+		// parse the url
+		url, _ := url.Parse(target)
+		// create the reverse proxy
+		proxy := httputil.NewSingleHostReverseProxy(url)
+
+		// Update the headers to allow for SSL redirection
+		req.URL.Host = url.Host
+		req.URL.Scheme = url.Scheme
+		// req.Header.Set("X-Forwarded-Host", req.Header.Get("Host"))
+		req.Header.Set("X-Choice-Operator-Version", "0.01")
+		req.Host = url.Host
+
+		// Note that ServeHttp is non blocking and uses a go routine under the hood
+		proxy.ServeHTTP(res, req)
 	}
 }
 
