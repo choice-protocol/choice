@@ -9,6 +9,8 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"time"
 
@@ -22,6 +24,20 @@ type LogEntry struct {
 	Payload         map[string]interface{}
 	Headers         http.Header
 	timestamp       time.Time
+}
+
+/*
+	Getters
+*/
+
+// Get the url for a given proxy condition
+func getProxyUrl() string {
+
+	// put logic in here that chooses the proxy
+
+	default_condition_url := "https://mainnet.infura.io/v3/c5b349fd47244da8a4df10652b911d38"
+
+	return default_condition_url
 }
 
 /*
@@ -63,6 +79,10 @@ func saveLogItem(logItem LogEntry) {
 
 }
 
+/*
+	Reverse Proxy Logic
+*/
+
 // Parse the requests body
 func parseRequestBody(request *http.Request) map[string]interface{} {
 
@@ -90,17 +110,28 @@ func parseRequestBody(request *http.Request) map[string]interface{} {
 }
 
 // Given a request send it to the appropriate url
-func handleRPCRequest(res http.ResponseWriter, req *http.Request) {
+func handleRequestAndRedirect(res http.ResponseWriter, req *http.Request) {
 	requestPayload := parseRequestBody(req)
+	target := getProxyUrl()
 
 	// build and save log
-	logItem := LogEntry{Payload: requestPayload, Headers: req.Header, timestamp: time.Now()}
+	logItem := LogEntry{Destination_url: target, Payload: requestPayload, Headers: req.Header, timestamp: time.Now()}
 	saveLogItem(logItem)
 
-	res.Header().Set("X-Choice-Operator-Version", "0.01")
-	res.Header().Set("Content-Type", "application/json")
+	// parse the url
+	url, _ := url.Parse(target)
+	// create the reverse proxy
+	proxy := httputil.NewSingleHostReverseProxy(url)
 
-	fmt.Fprintf(res, "{}")
+	// Update the headers to allow for SSL redirection
+	req.URL.Host = url.Host
+	req.URL.Scheme = url.Scheme
+	// req.Header.Set("X-Forwarded-Host", req.Header.Get("Host"))
+	req.Header.Set("X-Choice-Operator-Version", "0.01")
+	req.Host = url.Host
+
+	// Note that ServeHttp is non blocking and uses a go routine under the hood
+	proxy.ServeHTTP(res, req)
 }
 
 func debugHandler(w http.ResponseWriter, r *http.Request) {
@@ -115,7 +146,7 @@ func main() {
 	log.Print("starting server...")
 
 	// start server
-	http.HandleFunc("/", handleRPCRequest)
+	http.HandleFunc("/", handleRequestAndRedirect)
 	// start server
 	http.HandleFunc("/debug", debugHandler)
 
