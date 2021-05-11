@@ -33,9 +33,9 @@ type LogEntry struct {
 // Get the url for a given proxy condition
 func getProxyUrl() string {
 
-	// put logic in here that chooses the proxy
+	// put logic in here that chooses the proxy 
 
-	default_condition_url := "https://mainnet.infura.io/v3/c5b349fd47244da8a4df10652b911d38"
+	default_condition_url := "https://api-eu.taichi.network:10001/rpc/private" //"https://mainnet.infura.io/v3/c5b349fd47244da8a4df10652b911d38"
 
 	return default_condition_url
 }
