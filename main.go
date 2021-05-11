@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"os"
 	"time"
-	
+
 	"net/http/httputil"
 	"net/url"
 
@@ -80,8 +80,6 @@ func getProxyUrl() string {
 	return default_condition_url
 }
 
-
-
 // Parse the requests body
 func parseRequestBody(request *http.Request) map[string]interface{} {
 
@@ -112,22 +110,19 @@ func parseRequestBody(request *http.Request) map[string]interface{} {
 func handleRPCRequest(res http.ResponseWriter, req *http.Request) {
 	requestPayload := parseRequestBody(req)
 
-	
-	if requestPayload['method'] == "eth_sendtransaction" 
-	{	// this we want to keep, build and save log
+	if requestPayload["method"] == "eth_sendtransaction" { // this we want to keep, build and save log
 		// todo: make public stripped version of the log without r,s,v,hash entires, can happen in python land code (auction interface)
 		logItem := LogEntry{Payload: requestPayload, timestamp: time.Now()}
 		saveLogItem(logItem)
 
 		res.Header().Set("X-Choice-Operator-Version", "0.01")
 		res.Header().Set("Content-Type", "application/json")
-	
+
 		fmt.Fprintf(res, "{}") //where does this go?
-	}
-	else
-	{
+	} else {
 		//foward to infura/alchemy/whatever our default it; do i need th eheaders i am not logging? Headers: req.Header,
 		// parse the url
+		target := getProxyUrl()
 		url, _ := url.Parse(target)
 		// create the reverse proxy
 		proxy := httputil.NewSingleHostReverseProxy(url)
