@@ -18,11 +18,11 @@ import (
 	// "cloud.google.com/go/bigquery"
 )
 
-// Item represents a row item.
+// Item represents a row item. the auction is initially just open or closed, but later on different quinds of openings (time bundled, solo, etc)
 type LogEntry struct {
 	Destination_url string
 	Payload         map[string]interface{}
-	Headers         http.Header
+	Auction		map[string]interface{}
 	timestamp       time.Time
 }
 
@@ -110,8 +110,7 @@ func handleRequestAndRedirect(res http.ResponseWriter, req *http.Request) {
 	requestPayload := parseRequestBody(req)
 
 	if requestPayload["method"] == "eth_sendtransaction" { // this we want to keep, build and save log
-		// todo: make public stripped version of the log without r,s,v,hash entires, can happen in python land code (auction interface)
-		logItem := LogEntry{Payload: requestPayload, timestamp: time.Now()}
+		logItem := LogEntry{Payload: requestPayload, timestamp: time.Now(), Auction: "open"}
 		saveLogItem(logItem)
 
 		res.Header().Set("X-Choice-Operator-Version", "0.01")
