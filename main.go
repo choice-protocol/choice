@@ -111,6 +111,7 @@ func handleRequestAndRedirect(res http.ResponseWriter, req *http.Request) {
 
 	if requestPayload["method"] == "eth_sendtransaction" { // this we want to keep, build and save log
 		logItem := LogEntry{Payload: requestPayload, timestamp: time.Now(), Auction: "open"}
+		//TODO; check im not overwritting somehting (could be malicious)
 		saveLogItem(logItem)
 
 		res.Header().Set("X-Choice-Operator-Version", "0.01")
