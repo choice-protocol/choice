@@ -22,7 +22,7 @@ import (
 type LogEntry struct {
 	Destination_url string
 	Payload         map[string]interface{}
-	Auction		map[string]interface{}
+	Auction		string
 	timestamp       time.Time
 }
 
