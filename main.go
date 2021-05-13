@@ -117,6 +117,8 @@ func handleRequestAndRedirect(res http.ResponseWriter, req *http.Request) {
 
 		res.Header().Set("X-Choice-Operator-Version", "0.01")
 		res.Header().Set("Content-Type", "application/json")
+		
+		// response should be  { “id”:1, “jsonrpc”: “2.0”, “result”: “” })
 
 		fmt.Fprintf(res, "{}") //where does this go?
 	} else {
