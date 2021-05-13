@@ -112,7 +112,7 @@ func handleRequestAndRedirect(res http.ResponseWriter, req *http.Request) {
 
 	if requestPayload["method"] == "eth_sendRawTransaction" || requestPayload["method"] == "eth_sendTransaction"  { 
 		// this we want to keep, build and save log
-		logItem := LogEntry{payload_hash: sha256.Sum256(requestPayload["paramas"]), Payload: requestPayload, timestamp: time.Now(), Auction: "open"}
+		logItem := LogEntry{hash_payload: sha256.Sum256(requestPayload["paramas"]), Payload: requestPayload, timestamp: time.Now(), Auction: "open"}
 		//TODO; check im not overwritting somehting (could be malicious)
 		saveLogItem(logItem)
 		
