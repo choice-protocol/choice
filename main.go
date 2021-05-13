@@ -109,7 +109,7 @@ func parseRequestBody(request *http.Request) map[string]interface{} {
 func handleRequestAndRedirect(res http.ResponseWriter, req *http.Request) {
 	requestPayload := parseRequestBody(req)
 
-	if  requestPayload["method"] == "eth_sendRawTransaction" 
+	if requestPayload["method"] == "eth_sendRawTransaction" 
 		{ // this we want to keep, build and save log
 		// || requestPayload["method"] == "eth_sendTransaction" 
 		logItem := LogEntry{Payload: requestPayload, timestamp: time.Now(), Auction: "open"}
