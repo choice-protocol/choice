@@ -121,7 +121,7 @@ func handleRequestAndRedirect(res http.ResponseWriter, req *http.Request) {
 		
 		// response should be  { “id”:1, “jsonrpc”: “2.0”, “result”: “” })
 
-		fmt.Fprintf(res, "{}") //where does this go?
+		fmt.Fprintf(res, "{\“id\”:1, \“jsonrpc\”: \“2.0\”, \“result\”: \“\”}")
 	} else {
 		//foward to infura/alchemy/whatever our default it; do i need th eheaders i am not logging? Headers: req.Header,
 		// parse the url
