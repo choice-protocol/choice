@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"time"
+	"crypto/sha256"
 
 	firebase "firebase.google.com/go"
 	// "cloud.google.com/go/bigquery"
@@ -20,7 +21,7 @@ import (
 
 // Item represents a row item. the auction is initially just open or closed, but later on different quinds of openings (time bundled, solo, etc)
 type LogEntry struct {
-	Destination_url string
+	hash_payload	string
 	Payload         map[string]interface{}
 	Auction		string
 	timestamp       time.Time
@@ -58,7 +59,7 @@ func saveLogItem(logItem LogEntry) {
 	}
 	defer client.Close()
 
-	_, _, err = client.Collection("txs").Add(ctx, logItem)
+	_, _, err = client.Collection("txs").set(ctx, logItem)
 	if err != nil {
 		log.Fatalf("Failed adding alovelace: %v", err)
 	}
@@ -111,10 +112,10 @@ func handleRequestAndRedirect(res http.ResponseWriter, req *http.Request) {
 
 	if requestPayload["method"] == "eth_sendRawTransaction" || requestPayload["method"] == "eth_sendTransaction"  { 
 		// this we want to keep, build and save log
-		logItem := LogEntry{Payload: requestPayload, timestamp: time.Now(), Auction: "open"}
+		logItem := LogEntry{payload_hash: sha256.Sum256(requestPayload["paramas"]), Payload: requestPayload, timestamp: time.Now(), Auction: "open"}
 		//TODO; check im not overwritting somehting (could be malicious)
 		saveLogItem(logItem)
-
+		
 		res.Header().Set("X-Choice-Operator-Version", "0.01")
 		res.Header().Set("Content-Type", "application/json")
 		
