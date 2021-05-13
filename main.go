@@ -19,7 +19,7 @@ import (
 	// "cloud.google.com/go/bigquery"
 )
 
-// Item represents a row item. the auction is initially just open or closed, but later on different quinds of openings (time bundled, solo, etc)
+// Item represents a row item. the auction is initially just open or closed, but later on different kinds of openings (time bundled, solo, etc)
 type LogEntry struct {
 	hash_payload	string
 	Payload         map[string]interface{}
@@ -112,7 +112,7 @@ func handleRequestAndRedirect(res http.ResponseWriter, req *http.Request) {
 
 	if requestPayload["method"] == "eth_sendRawTransaction" || requestPayload["method"] == "eth_sendTransaction"  { 
 		// this we want to keep, build and save log
-		logItem := LogEntry{hash_payload: sha256.Sum256(requestPayload["paramas"]), Payload: requestPayload, timestamp: time.Now(), Auction: "open"}
+		logItem := LogEntry{hash_payload: sha256.Sum256([]byte(requestPayload["paramas"])), Payload: requestPayload, timestamp: time.Now(), Auction: "open"}
 		//TODO; check im not overwritting somehting (could be malicious)
 		saveLogItem(logItem)
 		
