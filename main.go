@@ -12,19 +12,20 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"strconv"
 	"time"
-	"crypto/sha256"
 
 	firebase "firebase.google.com/go"
+	"github.com/mitchellh/hashstructure/v2"
 	// "cloud.google.com/go/bigquery"
 )
 
 // Item represents a row item. the auction is initially just open or closed, but later on different kinds of openings (time bundled, solo, etc)
 type LogEntry struct {
-	hash_payload	string
-	Payload         map[string]interface{}
-	Auction		string
-	timestamp       time.Time
+	PayloadHash string
+	Payload     map[string]interface{}
+	Auction     string
+	timestamp   time.Time
 }
 
 /*
@@ -58,8 +59,8 @@ func saveLogItem(logItem LogEntry) {
 		log.Fatalln(err)
 	}
 	defer client.Close()
-	
-	_, _, err = client.Collection("txs").Doc(logItem.hash_payload).set(ctx, logItem)
+
+	_, err = client.Collection("txs").Doc(logItem.PayloadHash).Set(ctx, logItem)
 	if err != nil {
 		log.Fatalf("Failed adding alovelace: %v", err)
 	}
@@ -110,18 +111,26 @@ func parseRequestBody(request *http.Request) map[string]interface{} {
 func handleRequestAndRedirect(res http.ResponseWriter, req *http.Request) {
 	requestPayload := parseRequestBody(req)
 
-	if requestPayload["method"] == "eth_sendRawTransaction" || requestPayload["method"] == "eth_sendTransaction"  { 
+	if requestPayload["method"] == "eth_sendRawTransaction" || requestPayload["method"] == "eth_sendTransaction" {
 		// this we want to keep, build and save log
-		logItem := LogEntry{hash_payload: sha256.Sum256([]byte(requestPayload["paramas"])), Payload: requestPayload, timestamp: time.Now(), Auction: "open"}
+		objectHash, err := hashstructure.Hash(requestPayload["params"], hashstructure.FormatV2, nil)
+		objectHashString := strconv.FormatUint(objectHash, 10)
+
+		if err != nil {
+			log.Panicf("%d", err)
+		}
+		logItem := LogEntry{PayloadHash: objectHashString, Payload: requestPayload, timestamp: time.Now(), Auction: "open"}
 		//TODO; check im not overwritting somehting (could be malicious)
 		saveLogItem(logItem)
-		
+
 		res.Header().Set("X-Choice-Operator-Version", "0.01")
 		res.Header().Set("Content-Type", "application/json")
-		
-		// response should be  { “id”:1, “jsonrpc”: “2.0”, “result”: “” })
 
-		fmt.Fprintf(res, "{\“id\”:1, \“jsonrpc\”: \“2.0\”, \“result\”: \“\”}")
+		// response should be  { “id”:1, “jsonrpc”: “2.0”, “result”: “” })
+		jsonResponse := "{\"id\":1, \"jsonrpc\": \"2.0\", \"result\": \"\"}"
+
+		fmt.Fprintf(res, jsonResponse)
+
 	} else {
 		//foward to infura/alchemy/whatever our default it; do i need th eheaders i am not logging? Headers: req.Header,
 		// parse the url
