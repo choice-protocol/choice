@@ -58,8 +58,8 @@ func saveLogItem(logItem LogEntry) {
 		log.Fatalln(err)
 	}
 	defer client.Close()
-
-	_, _, err = client.Collection("txs").set(ctx, logItem)
+	
+	_, _, err = client.Collection("txs").Doc(logItem.hash_payload).set(ctx, logItem)
 	if err != nil {
 		log.Fatalf("Failed adding alovelace: %v", err)
 	}
