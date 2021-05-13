@@ -58,7 +58,7 @@ func saveLogItem(logItem LogEntry) {
 	}
 	defer client.Close()
 
-	_, _, err = client.Collection("tx").Add(ctx, logItem)
+	_, _, err = client.Collection("txs").Add(ctx, logItem)
 	if err != nil {
 		log.Fatalf("Failed adding alovelace: %v", err)
 	}
