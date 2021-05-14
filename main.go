@@ -59,8 +59,8 @@ func saveLogItem(logItem LogEntry) {
 		log.Fatalln(err)
 	}
 	defer client.Close()
-
-	_, err = client.Collection("txs").Doc(logItem.PayloadHash).Set(ctx, logItem)
+	// Create fails if the document exists, th ebehaviour we want
+	_, err = client.Collection("txs").Doc(logItem.PayloadHash).Create(ctx, logItem)
 	if err != nil {
 		log.Fatalf("Failed adding alovelace: %v", err)
 	}
