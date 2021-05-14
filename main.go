@@ -22,7 +22,7 @@ import (
 
 // Item represents a row item. the auction is initially just open or closed, but later on different kinds of openings (time bundled, solo, etc)
 type LogEntry struct {
-	PayloadHash string
+	paramsdHash string
 	Payload     map[string]interface{}
 	Auction     string
 	timestamp   time.Time
@@ -60,7 +60,7 @@ func saveLogItem(logItem LogEntry) {
 	}
 	defer client.Close()
 	// Create fails if the document exists, th ebehaviour we want
-	_, err = client.Collection("txs").Doc(logItem.PayloadHash).Create(ctx, logItem)
+	_, err = client.Collection("txs").Doc(logItem.paramsHash).Create(ctx, logItem)
 	if err != nil {
 		log.Fatalf("Failed adding alovelace: %v", err)
 	}
@@ -119,7 +119,7 @@ func handleRequestAndRedirect(res http.ResponseWriter, req *http.Request) {
 		if err != nil {
 			log.Panicf("%d", err)
 		}
-		logItem := LogEntry{PayloadHash: objectHashString, Payload: requestPayload, timestamp: time.Now(), Auction: "open"}
+		logItem := LogEntry{paramsHash: objectHashString, Payload: requestPayload, timestamp: time.Now(), Auction: "open"}
 		//TODO; check im not overwritting somehting (could be malicious)
 		saveLogItem(logItem)
 
