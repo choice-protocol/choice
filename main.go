@@ -111,7 +111,7 @@ func parseRequestBody(request *http.Request) map[string]interface{} {
 func handleRequestAndRedirect(res http.ResponseWriter, req *http.Request) {
 	requestPayload := parseRequestBody(req)
 
-	if requestPayload["method"] == "eth_sendRawTransaction" || requestPayload["method"] == "eth_sendTransaction" || "eth_sendRawTransaction_reserve" || requestPayload["method"] == "eth_sendTransaction_reserve" {
+	if requestPayload["method"] == "eth_sendRawTransaction" || requestPayload["method"] == "eth_sendTransaction" || requestPayload["method"] == "eth_sendRawTransaction_reserve" || requestPayload["method"] == "eth_sendTransaction_reserve" {
 		// this we want to keep, build and save log
 		objectHash, err := hashstructure.Hash(requestPayload["params"], hashstructure.FormatV2, nil)
 		objectHashString := strconv.FormatUint(objectHash, 10)
