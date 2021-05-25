@@ -15,17 +15,21 @@ import (
 	"strconv"
 	"time"
 
-	firebase "firebase.google.com/go"
+	"cloud.google.com/go/firestore"
 	"github.com/mitchellh/hashstructure/v2"
 	// "cloud.google.com/go/bigquery"
 )
 
+// TODO Move these to ENV environment variabels
+var ETH_NODE string = "https://rinkeby-light.eth.linkpool.io"
+var PROJECT_ID string = "choice-operator"
+
 // Item represents a row item. the auction is initially just open or closed, but later on different kinds of openings (time bundled, solo, etc)
 type LogEntry struct {
-	paramsdHash string
-	Payload     map[string]interface{}
-	Auction     string
-	timestamp   time.Time
+	paramsHash string
+	Payload    map[string]interface{}
+	Auction    string
+	timestamp  time.Time
 }
 
 /*
@@ -34,52 +38,33 @@ type LogEntry struct {
 
 // Save implements the ValueSaver interface.
 // This example disables best-effort de-duplication, which allows for higher throughput.
-func saveLogItem(logItem LogEntry) {
+func saveLogItem(logItem LogEntry) error {
 
 	// save the log entry - right now we are just saving it to the log
-
 	if reqHeadersBytes, err := json.MarshalIndent(logItem, "", "\t"); err != nil {
 		log.Println("Could not Marshal Req Headers")
 	} else {
-		log.Println(string(reqHeadersBytes))
+		log.Printf("reqHeadersBytes %s\n", string(reqHeadersBytes))
 	}
 
-	projectID := "choice-operator"
-
-	// Use the application default credentials
 	ctx := context.Background()
-	conf := &firebase.Config{ProjectID: projectID}
-	app, err := firebase.NewApp(ctx, conf)
+	client, err := firestore.NewClient(ctx, PROJECT_ID)
 	if err != nil {
-		log.Fatalln(err)
-	}
-
-	client, err := app.Firestore(ctx)
-	if err != nil {
-		log.Fatalln(err)
+		log.Fatalf("Fatal firebase error :%s", err)
 	}
 	defer client.Close()
-	// Create fails if the document exists, th ebehaviour we want
-	_, err = client.Collection("txs").Doc(logItem.paramsHash).Create(ctx, logItem)
+	collection := client.Collection("txs").Doc(logItem.paramsHash)
+	_, err = collection.Create(ctx, logItem)
 	if err != nil {
-		log.Fatalf("Failed adding alovelace: %v", err)
+		return fmt.Errorf("Failed to add transaction: %v", err)
 	}
 
+	return nil
 }
 
 /*
 	Getters
 */
-
-// Get the url for a given proxy condition
-func getProxyUrl() string {
-
-	// put logic in here that chooses the proxy
-
-	default_condition_url := "https://eth-mainnet.alchemyapi.io/v2/ikJ14RMH8ZjS-H0F3QUOd-lwec5TzkcV/"
-
-	return default_condition_url
-}
 
 // Parse the requests body
 func parseRequestBody(request *http.Request) map[string]interface{} {
@@ -110,8 +95,11 @@ func parseRequestBody(request *http.Request) map[string]interface{} {
 // Given a request send it to the appropriate url
 func handleRequestAndRedirect(res http.ResponseWriter, req *http.Request) {
 	requestPayload := parseRequestBody(req)
-
-	if requestPayload["method"] == "eth_sendRawTransaction" || requestPayload["method"] == "eth_sendTransaction" || requestPayload["method"] == "eth_sendRawTransaction_reserve" || requestPayload["method"] == "eth_sendTransaction_reserve" {
+	log.Printf("Request: %+v\n", requestPayload)
+	if requestPayload["method"] == "eth_sendRawTransaction" ||
+		requestPayload["method"] == "eth_sendTransaction" ||
+		requestPayload["method"] == "eth_sendRawTransaction_reserve" ||
+		requestPayload["method"] == "eth_sendTransaction_reserve" {
 		// this we want to keep, build and save log
 		objectHash, err := hashstructure.Hash(requestPayload["params"], hashstructure.FormatV2, nil)
 		objectHashString := strconv.FormatUint(objectHash, 10)
@@ -119,23 +107,28 @@ func handleRequestAndRedirect(res http.ResponseWriter, req *http.Request) {
 		if err != nil {
 			log.Panicf("%d", err)
 		}
-		logItem := LogEntry{paramsHash: objectHashString, Payload: requestPayload, timestamp: time.Now(), Auction: "open"}
-		//TODO; check im not overwritting somehting (could be malicious)
-		saveLogItem(logItem)
-
+		// default headers
 		res.Header().Set("X-Choice-Operator-Version", "0.01")
 		res.Header().Set("Content-Type", "application/json")
+
+		logItem := LogEntry{paramsHash: objectHashString, Payload: requestPayload, timestamp: time.Now(), Auction: "open"}
+
+		//TODO; check im not overwritting somehting (could be malicious)
+		err = saveLogItem(logItem)
+		if err != nil {
+			log.Printf("Failed to record transaction: %s", err)
+			res.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(res, "")
+		}
 
 		// response should be  { “id”:1, “jsonrpc”: “2.0”, “result”: “” })
 		jsonResponse := "{\"id\":1, \"jsonrpc\": \"2.0\", \"result\": \"\"}"
 
 		fmt.Fprintf(res, jsonResponse)
-
 	} else {
 		//foward to infura/alchemy/whatever our default it; do i need th eheaders i am not logging? Headers: req.Header,
 		// parse the url
-		target := getProxyUrl()
-		url, _ := url.Parse(target)
+		url, _ := url.Parse(ETH_NODE)
 		// create the reverse proxy
 		proxy := httputil.NewSingleHostReverseProxy(url)
 
@@ -147,6 +140,7 @@ func handleRequestAndRedirect(res http.ResponseWriter, req *http.Request) {
 		req.Host = url.Host
 
 		// Note that ServeHttp is non blocking and uses a go routine under the hood
+		// TODO: We shouldn't need to be spawning a new http server on each request
 		proxy.ServeHTTP(res, req)
 	}
 
@@ -156,20 +150,110 @@ func debugHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "debugging")
 }
 
-/*
-	Entry
-*/
+type Saver = func(LogEntry) error
+
+// Generate a function which embeds a firestore client and allows saving logEntries to firestore
+func genSaver(client *firestore.Client, ctx context.Context) Saver {
+	return func(logEntry LogEntry) error {
+		collection := client.Collection("txs").Doc(logEntry.paramsHash)
+		_, err := collection.Create(ctx, logEntry)
+		if err != nil {
+			return fmt.Errorf("Failed to add transaction: %v", err)
+		}
+
+		return nil
+	}
+}
+
+type RequestHandler = func(http.ResponseWriter, *http.Request)
+
+func genRequestHandler(vanillaURL *url.URL, bidderURL *url.URL, saver Saver) RequestHandler {
+	bidderProxy := httputil.NewSingleHostReverseProxy(bidderURL)
+	vanillaProxy := httputil.NewSingleHostReverseProxy(vanillaURL)
+
+	return func(res http.ResponseWriter, req *http.Request) {
+		requestPayload := parseRequestBody(req)
+		log.Printf("Request: %+v\n", requestPayload)
+		if requestPayload["method"] == "eth_sendRawTransaction" ||
+			requestPayload["method"] == "eth_sendTransaction" ||
+			requestPayload["method"] == "eth_sendRawTransaction_reserve" ||
+			requestPayload["method"] == "eth_sendTransaction_reserve" {
+			// this we want to keep, build and save log
+			objectHash, err := hashstructure.Hash(requestPayload["params"], hashstructure.FormatV2, nil)
+			objectHashString := strconv.FormatUint(objectHash, 10)
+
+			if err != nil {
+				log.Panicf("%d", err)
+			}
+			// default headers
+			res.Header().Set("X-Choice-Operator-Version", "0.01")
+			res.Header().Set("Content-Type", "application/json")
+
+			logItem := LogEntry{paramsHash: objectHashString, Payload: requestPayload, timestamp: time.Now(), Auction: "open"}
+
+			err = saver(logItem)
+			if err != nil {
+				log.Printf("Failed to record transaction: %s", err)
+				res.WriteHeader(http.StatusBadRequest)
+				fmt.Fprintf(res, "")
+			}
+
+			// response should be  { “id”:1, “jsonrpc”: “2.0”, “result”: “” })
+			// jsonResponse := "{\"id\":1, \"jsonrpc\": \"2.0\", \"result\": \"\"}"
+			// bidderProxy.ServeHTTP(res, jsonResponse)
+			bidderProxy.ServeHTTP(res, req)
+
+			// fmt.Fprintf(res, jsonResponse)
+		} else {
+			// Update the headers to allow for SSL redirection
+			req.URL.Host = vanillaURL.Host
+			req.URL.Scheme = vanillaURL.Scheme
+			// req.Header.Set("X-Forwarded-Host", req.Header.Get("Host"))
+			req.Header.Set("X-Choice-Operator-Version", "0.01")
+			req.Host = vanillaURL.Host
+
+			// Note that ServeHttp is non blocking and uses a go routine under the hood
+			// TODO: We shouldn't need to be spawning a new http server on each request
+			vanillaProxy.ServeHTTP(res, req)
+		}
+	}
+}
 
 func main() {
 	log.Print("starting server...")
 
+	projectId := os.Getenv("CHOICE_PROJECT_ID")
+	// Setup client
+	ctx := context.Background()
+	client, err := firestore.NewClient(ctx, projectId)
+	if err != nil {
+		log.Fatalf("Fatal firebase error :%s", err)
+	}
+	defer client.Close()
+
+	saver := genSaver(client, ctx)
+
+	// bidderProxy
+	bidderURL, err := url.Parse(os.Getenv("CHOICE_BIDDER_URL"))
+	if err != nil {
+		log.Fatalf("Set environment variable CHOICE_BIDDER_URL")
+	}
+
+	// vanillaProxy
+	vanillaURL, err := url.Parse(os.Getenv("CHOICE_VANILLA_URL"))
+	if err != nil {
+		log.Fatalf("Set environment variable CHOICE_VANILLA_URL")
+	}
+
+	handler := genRequestHandler(vanillaURL, bidderURL, saver)
+
 	// start server
-	http.HandleFunc("/", handleRequestAndRedirect)
+	http.HandleFunc("/", handler)
 	// start server
 	http.HandleFunc("/debug", debugHandler)
 
 	// Determine port for HTTP service.
-	port := os.Getenv("PORT")
+	port := os.Getenv("CHOICE_PORT")
 	if port == "" {
 		port = "8080"
 		log.Printf("defaulting to port %s", port)
