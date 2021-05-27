@@ -20,10 +20,6 @@ import (
 	// "cloud.google.com/go/bigquery"
 )
 
-// TODO Move these to ENV environment variabels
-var ETH_NODE string = "https://rinkeby-light.eth.linkpool.io"
-var PROJECT_ID string = "choice-operator"
-
 // Item represents a row item. the auction is initially just open or closed, but later on different kinds of openings (time bundled, solo, etc)
 type LogEntry struct {
 	paramsHash string
@@ -31,40 +27,6 @@ type LogEntry struct {
 	Auction    string
 	timestamp  time.Time
 }
-
-/*
-	Logging
-*/
-
-// Save implements the ValueSaver interface.
-// This example disables best-effort de-duplication, which allows for higher throughput.
-func saveLogItem(logItem LogEntry) error {
-
-	// save the log entry - right now we are just saving it to the log
-	if reqHeadersBytes, err := json.MarshalIndent(logItem, "", "\t"); err != nil {
-		log.Println("Could not Marshal Req Headers")
-	} else {
-		log.Printf("reqHeadersBytes %s\n", string(reqHeadersBytes))
-	}
-
-	ctx := context.Background()
-	client, err := firestore.NewClient(ctx, PROJECT_ID)
-	if err != nil {
-		log.Fatalf("Fatal firebase error :%s", err)
-	}
-	defer client.Close()
-	collection := client.Collection("txs").Doc(logItem.paramsHash)
-	_, err = collection.Create(ctx, logItem)
-	if err != nil {
-		return fmt.Errorf("Failed to add transaction: %v", err)
-	}
-
-	return nil
-}
-
-/*
-	Getters
-*/
 
 // Parse the requests body
 func parseRequestBody(request *http.Request) map[string]interface{} {
@@ -92,60 +54,6 @@ func parseRequestBody(request *http.Request) map[string]interface{} {
 	return requestPayload
 }
 
-// Given a request send it to the appropriate url
-func handleRequestAndRedirect(res http.ResponseWriter, req *http.Request) {
-	requestPayload := parseRequestBody(req)
-	log.Printf("Request: %+v\n", requestPayload)
-	if requestPayload["method"] == "eth_sendRawTransaction" ||
-		requestPayload["method"] == "eth_sendTransaction" ||
-		requestPayload["method"] == "eth_sendRawTransaction_reserve" ||
-		requestPayload["method"] == "eth_sendTransaction_reserve" {
-		// this we want to keep, build and save log
-		objectHash, err := hashstructure.Hash(requestPayload["params"], hashstructure.FormatV2, nil)
-		objectHashString := strconv.FormatUint(objectHash, 10)
-
-		if err != nil {
-			log.Panicf("%d", err)
-		}
-		// default headers
-		res.Header().Set("X-Choice-Operator-Version", "0.01")
-		res.Header().Set("Content-Type", "application/json")
-
-		logItem := LogEntry{paramsHash: objectHashString, Payload: requestPayload, timestamp: time.Now(), Auction: "open"}
-
-		//TODO; check im not overwritting somehting (could be malicious)
-		err = saveLogItem(logItem)
-		if err != nil {
-			log.Printf("Failed to record transaction: %s", err)
-			res.WriteHeader(http.StatusBadRequest)
-			fmt.Fprintf(res, "")
-		}
-
-		// response should be  { “id”:1, “jsonrpc”: “2.0”, “result”: “” })
-		jsonResponse := "{\"id\":1, \"jsonrpc\": \"2.0\", \"result\": \"\"}"
-
-		fmt.Fprintf(res, jsonResponse)
-	} else {
-		//foward to infura/alchemy/whatever our default it; do i need th eheaders i am not logging? Headers: req.Header,
-		// parse the url
-		url, _ := url.Parse(ETH_NODE)
-		// create the reverse proxy
-		proxy := httputil.NewSingleHostReverseProxy(url)
-
-		// Update the headers to allow for SSL redirection
-		req.URL.Host = url.Host
-		req.URL.Scheme = url.Scheme
-		// req.Header.Set("X-Forwarded-Host", req.Header.Get("Host"))
-		req.Header.Set("X-Choice-Operator-Version", "0.01")
-		req.Host = url.Host
-
-		// Note that ServeHttp is non blocking and uses a go routine under the hood
-		// TODO: We shouldn't need to be spawning a new http server on each request
-		proxy.ServeHTTP(res, req)
-	}
-
-}
-
 func debugHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "debugging")
 }
@@ -168,7 +76,10 @@ func genSaver(client *firestore.Client, ctx context.Context) Saver {
 type RequestHandler = func(http.ResponseWriter, *http.Request)
 
 func genRequestHandler(vanillaURL *url.URL, bidderURL *url.URL, saver Saver) RequestHandler {
+	log.Printf("Starting bidder proxy: %s", bidderURL)
 	bidderProxy := httputil.NewSingleHostReverseProxy(bidderURL)
+
+	log.Printf("Starting vanilla proxy: %s", vanillaURL)
 	vanillaProxy := httputil.NewSingleHostReverseProxy(vanillaURL)
 
 	return func(res http.ResponseWriter, req *http.Request) {
@@ -186,24 +97,18 @@ func genRequestHandler(vanillaURL *url.URL, bidderURL *url.URL, saver Saver) Req
 				log.Panicf("%d", err)
 			}
 			// default headers
-			res.Header().Set("X-Choice-Operator-Version", "0.01")
-			res.Header().Set("Content-Type", "application/json")
+			req.Header.Set("X-Choice-Operator-Version", "0.01")
 
 			logItem := LogEntry{paramsHash: objectHashString, Payload: requestPayload, timestamp: time.Now(), Auction: "open"}
 
 			err = saver(logItem)
 			if err != nil {
 				log.Printf("Failed to record transaction: %s", err)
-				res.WriteHeader(http.StatusBadRequest)
-				fmt.Fprintf(res, "")
+			} else {
+				log.Printf("Successfully recorded transaction")
 			}
-
-			// response should be  { “id”:1, “jsonrpc”: “2.0”, “result”: “” })
-			// jsonResponse := "{\"id\":1, \"jsonrpc\": \"2.0\", \"result\": \"\"}"
-			// bidderProxy.ServeHTTP(res, jsonResponse)
+			req.Host = bidderURL.Host
 			bidderProxy.ServeHTTP(res, req)
-
-			// fmt.Fprintf(res, jsonResponse)
 		} else {
 			// Update the headers to allow for SSL redirection
 			req.URL.Host = vanillaURL.Host
@@ -213,7 +118,6 @@ func genRequestHandler(vanillaURL *url.URL, bidderURL *url.URL, saver Saver) Req
 			req.Host = vanillaURL.Host
 
 			// Note that ServeHttp is non blocking and uses a go routine under the hood
-			// TODO: We shouldn't need to be spawning a new http server on each request
 			vanillaProxy.ServeHTTP(res, req)
 		}
 	}
